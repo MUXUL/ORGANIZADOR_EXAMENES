@@ -60,16 +60,18 @@
       width: 100%;
       border: 2px dashed #94a3b8;
       border-radius: 10px;
-      padding: 2rem 1rem;
+      padding: 2.2rem 1rem;
       text-align: center;
       background: #f1f5f9;
       cursor: pointer;
       transition: all 0.2s;
       margin-bottom: 1.25rem;
     }
-    .upload-box:hover {
+    .upload-box:hover,
+    .upload-box.dragover {
       border-color: var(--primary);
-      background: #f0fdfa;
+      background: #ccfbf1;
+      transform: scale(1.005);
     }
     input[type="file"] {
       display: none;
@@ -151,10 +153,10 @@
 
 <div class="container">
   <h1>Alineador de Exámenes por Código</h1>
-  <p class="subtitle">Sube tu archivo Excel (.xlsx) para alinear cada resultado frente a su código correspondiente.</p>
+  <p class="subtitle">Arrastra tu archivo Excel (.xlsx) o haz clic para alinearlo por código de paciente.</p>
 
-  <label class="upload-box" for="excelInput">
-    <strong>Haz clic aquí para seleccionar tu archivo Excel (.xlsx)</strong>
+  <label class="upload-box" id="dropZone" for="excelInput">
+    <strong>Arrastra aquí tu archivo Excel (.xlsx) o haz clic para buscarlo</strong>
     <span style="font-size: 0.85rem; color: #64748b;">El procesamiento es 100% local en tu navegador</span>
     <input type="file" id="excelInput" accept=".xlsx" />
   </label>
@@ -180,7 +182,9 @@
 
 <script>
   let workbookSalida = null;
+  let archivoActual = null;
 
+  const dropZone = document.getElementById('dropZone');
   const excelInput = document.getElementById('excelInput');
   const colInicioSelect = document.getElementById('colInicio');
   const statusDiv = document.getElementById('status');
@@ -188,16 +192,52 @@
   const tableWrapper = document.getElementById('tableWrapper');
   const previewTable = document.getElementById('previewTable');
 
-  excelInput.addEventListener('change', procesarArchivo);
-  colInicioSelect.addEventListener('change', () => {
-    if (excelInput.files.length > 0) procesarArchivo();
+  // Selección por clic
+  excelInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+      archivoActual = e.target.files[0];
+      procesarArchivo(archivoActual);
+    }
   });
 
-  async function procesarArchivo() {
-    const file = excelInput.files[0];
+  // Eventos de arrastrar y soltar (Drag & Drop)
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+  });
+
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'));
+  });
+
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'));
+  });
+
+  dropZone.addEventListener('drop', (e) => {
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      archivoActual = files[0];
+      procesarArchivo(archivoActual);
+    }
+  });
+
+  // Recalcular si cambia la columna de inicio
+  colInicioSelect.addEventListener('change', () => {
+    if (archivoActual) procesarArchivo(archivoActual);
+  });
+
+  async function procesarArchivo(file) {
     if (!file) return;
 
-    statusDiv.textContent = "Procesando archivo...";
+    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+      statusDiv.textContent = "Por favor selecciona o arrastra un archivo válido con extensión .xlsx";
+      return;
+    }
+
+    statusDiv.textContent = `Procesando "${file.name}"...`;
     btnDescargar.style.display = "none";
     tableWrapper.style.display = "none";
 
